@@ -1,0 +1,11 @@
+build/
+data/
+include/
+.vs/
+.DS_Store
+*.user
+*.VC.db
+*.VC.opendb
+x64/
+Debug/
+Release/
