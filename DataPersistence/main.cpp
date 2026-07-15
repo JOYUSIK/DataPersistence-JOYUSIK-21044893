@@ -2,11 +2,14 @@
 #include <iomanip>
 #include <unordered_map>
 #include <functional>
+#include <ctime>
 #include <windows.h>
 #include "repository/SampleRepository.h"
 #include "repository/OrderRepository.h"
 
-static const std::string SEP(60, '=');
+static const int         COL_WIDTH  = 60;
+static const std::string SEP(COL_WIDTH, '=');
+static const std::string DIV(COL_WIDTH, '-');
 
 // ─── Sample 메뉴 ────────────────────────────────────────────
 static void listSamples(SampleRepository& repo) {
@@ -19,7 +22,7 @@ static void listSamples(SampleRepository& repo) {
               << std::setw(8)  << "재고"
               << std::setw(8)  << "수율"
               << "생산시간(min)\n";
-    std::cout << std::string(60, '-') << "\n";
+    std::cout << DIV << "\n";
     for (const auto& s : list) {
         std::cout << " " << std::left << std::setw(8)  << s.id
                   << std::setw(20) << s.name
@@ -90,7 +93,7 @@ static void listOrders(OrderRepository& repo) {
               << std::setw(16) << "고객"
               << std::setw(8)  << "수량"
               << "상태\n";
-    std::cout << std::string(60, '-') << "\n";
+    std::cout << DIV << "\n";
     for (const auto& o : list) {
         std::cout << " " << std::left << std::setw(22) << o.orderId
                   << std::setw(8)  << o.sampleId
@@ -108,8 +111,13 @@ static void addOrder(OrderRepository& repo) {
     std::string buf;
     std::cout << " 수량    > "; std::getline(std::cin, buf);
     o.quantity  = buf.empty() ? 0 : std::stoi(buf);
-    o.status    = "RESERVED";
-    o.createdAt = "2026-07-15T00:00:00";
+    o.status = "RESERVED";
+    std::time_t now = std::time(nullptr);
+    std::tm tm{};
+    localtime_s(&tm, &now);
+    char timeBuf[20];
+    std::strftime(timeBuf, sizeof(timeBuf), "%Y-%m-%dT%H:%M:%S", &tm);
+    o.createdAt = timeBuf;
 
     if (o.sampleId.empty() || o.customer.empty()) {
         std::cout << "\n [오류] 시료 ID와 고객명은 필수입니다.\n"; return;
@@ -152,6 +160,18 @@ static void removeOrder(OrderRepository& repo) {
                                   : "\n [오류] 존재하지 않는 주문ID입니다.\n");
 }
 
+using ActionMap = std::unordered_map<std::string, std::function<void()>>;
+
+static void runSubMenu(const std::string& title, const ActionMap& actions) {
+    std::cout << "\n" << SEP << "\n " << title << "\n" << SEP << "\n";
+    std::cout << " [1] 전체조회  [2] ID조회  [3] 등록  [4] 수정  [5] 삭제  [0] 뒤로\n > ";
+    std::string sub; std::getline(std::cin, sub);
+    if (sub == "0") return;
+    auto it = actions.find(sub);
+    if (it != actions.end()) it->second();
+    else std::cout << "\n [오류] 올바른 번호를 입력해주세요.\n";
+}
+
 // ─── 메인 ────────────────────────────────────────────────────
 int main() {
     SetConsoleOutputCP(CP_UTF8);
@@ -160,15 +180,14 @@ int main() {
     SampleRepository sampleRepo;
     OrderRepository  orderRepo;
 
-    const std::unordered_map<std::string, std::function<void()>> sampleActions = {
+    const ActionMap sampleActions = {
         {"1", [&]{ listSamples(sampleRepo);      }},
         {"2", [&]{ findSample(sampleRepo);        }},
         {"3", [&]{ addSample(sampleRepo);         }},
         {"4", [&]{ updateSampleStock(sampleRepo); }},
         {"5", [&]{ removeSample(sampleRepo);      }},
     };
-
-    const std::unordered_map<std::string, std::function<void()>> orderActions = {
+    const ActionMap orderActions = {
         {"1", [&]{ listOrders(orderRepo);       }},
         {"2", [&]{ findOrder(orderRepo);         }},
         {"3", [&]{ addOrder(orderRepo);          }},
@@ -176,32 +195,19 @@ int main() {
         {"5", [&]{ removeOrder(orderRepo);       }},
     };
 
+    const std::unordered_map<std::string, std::pair<std::string, const ActionMap*>> menuMap = {
+        {"1", {"시료 관리", &sampleActions}},
+        {"2", {"주문 관리", &orderActions}},
+    };
+
     while (true) {
-        std::cout << "\n" << SEP << "\n";
-        std::cout << " DataPersistence PoC — JSON CRUD 검증\n";
-        std::cout << SEP << "\n";
-        std::cout << " [1] 시료 관리\n";
-        std::cout << " [2] 주문 관리\n";
-        std::cout << " [0] 종료\n";
-        std::cout << SEP << "\n 선택 > ";
+        std::cout << "\n" << SEP << "\n DataPersistence PoC — JSON CRUD 검증\n" << SEP << "\n";
+        std::cout << " [1] 시료 관리\n [2] 주문 관리\n [0] 종료\n" << SEP << "\n 선택 > ";
         std::string menu; std::getline(std::cin, menu);
-
         if (menu == "0") { std::cout << "\n 시스템을 종료합니다.\n"; break; }
-
-        const std::unordered_map<std::string, std::function<void()>>* actions = nullptr;
-        std::string subTitle;
-        if (menu == "1") { actions = &sampleActions; subTitle = "시료 관리"; }
-        if (menu == "2") { actions = &orderActions;  subTitle = "주문 관리"; }
-
-        if (!actions) { std::cout << "\n [오류] 올바른 메뉴 번호를 입력해주세요.\n"; continue; }
-
-        std::cout << "\n" << SEP << "\n " << subTitle << "\n" << SEP << "\n";
-        std::cout << " [1] 전체조회  [2] ID조회  [3] 등록  [4] 수정  [5] 삭제  [0] 뒤로\n > ";
-        std::string sub; std::getline(std::cin, sub);
-        if (sub == "0") continue;
-        auto it = actions->find(sub);
-        if (it != actions->end()) it->second();
-        else std::cout << "\n [오류] 올바른 번호를 입력해주세요.\n";
+        auto it = menuMap.find(menu);
+        if (it == menuMap.end()) { std::cout << "\n [오류] 올바른 메뉴 번호를 입력해주세요.\n"; continue; }
+        runSubMenu(it->second.first, *it->second.second);
     }
     return 0;
 }
