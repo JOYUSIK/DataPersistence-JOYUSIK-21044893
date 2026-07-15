@@ -1,0 +1,7 @@
+<Solution>
+  <Configurations>
+    <Platform Name="x64" />
+    <Platform Name="x86" />
+  </Configurations>
+  <Project Path="DataPersistence.vcxproj" Id="c4ab5971-e0a0-48ae-89b0-9f5c0bfad91c" />
+</Solution>
